@@ -1,0 +1,126 @@
+#include <WiFi.h>
+#include <PubSubClient.h>
+
+// Defina as credenciais da sua rede WiFi
+const char* ssid = "M54 de Dilermano";
+const char* password = "diler123";
+
+// Defina as informações do broker MQTT
+const char* mqtt_server = "192.168.45.129";
+const int mqtt_port = 1883;
+const char* mqtt_topic = "Nivel_Tanque_PUC";
+
+// Defina os pinos que estão conectados aos sensores de nível
+const int Nivel1 = 2;
+const int Nivel2 = 4;
+const int Nivel3 = 22;
+const int Nivel4 = 18;
+const int Nivel5 = 19;
+int test = 0;
+
+
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(Nivel1, INPUT_PULLUP);
+  pinMode(Nivel2, INPUT_PULLUP);
+  pinMode(Nivel3, INPUT_PULLUP);
+  pinMode(Nivel4, INPUT_PULLUP);
+  pinMode(Nivel5, INPUT_PULLUP);
+  setup_wifi();
+  client.setServer(mqtt_server, mqtt_port);
+}
+
+void loop() {
+  client.loop();
+  if (!client.connect("ESP32Client")) {
+    reconnect();
+  }
+
+
+  int nivel = 0;
+  if (!digitalRead(Nivel1))
+    nivel = 1;
+  if (!digitalRead(Nivel2))
+    nivel = 2;
+  if (!digitalRead(Nivel3))
+    nivel = 3;
+  if (!digitalRead(Nivel4))
+    nivel = 4;
+  if (!digitalRead(Nivel5))
+    nivel = 5;
+
+
+  
+
+  // Publica o nível no tópico MQTT
+  boolean sended = false;
+
+  while(!sended)
+  {
+    String message = String(nivel);
+    boolean retained = true; 
+    sended = client.publish(mqtt_topic, message.c_str(), retained);
+    if(sended)
+    {
+      Serial.print("Nivel Enviado:");
+      Serial.println(message);
+    }
+    else
+    {
+      Serial.print("Nivel Não Enviado:");
+      Serial.println(message);
+      client.loop();
+      if (!client.connect("ESP32Client")) 
+        reconnect();
+    }
+    
+    delay(500);
+    
+    
+  }
+  test++;
+  if (test > 6)
+  {
+    test = 0;
+  }
+  
+  delay(1000); // espera um segundo antes de ler novamente os sensores
+}
+void setup_wifi() {
+  delay(1000);
+  Serial.println();
+  Serial.print("Conectando a ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("");
+  Serial.println("WiFi conectado");
+  Serial.println("Endereço IP: ");
+  Serial.println(WiFi.localIP());
+  return;
+}
+void reconnect() {
+  while (!client.connected()) {
+    Serial.print("Tentando se reconectar ao MQTT Broker...");
+    if (client.connect("ESP32Client")) {
+      Serial.println("Conectado");
+    } else {
+      Serial.print("Falhou, rc=");
+      Serial.print(client.state());
+      Serial.println(" Tente novamente em 5 segundos");
+      delay(5000);
+    }
+  }
+  return;
+}
